@@ -60,7 +60,7 @@ class StreamModule(nn.Module):
     # x is B x T x 1024
     attention = self.attention_module(x)  # B x T
     attention_expand = attention.expand(x.size())
-    new_features = x * attention_expand
+    new_features = x + x * attention_expand*0
     weighted_features = torch.sum(new_features, 1)
     return weighted_features, attention
 
