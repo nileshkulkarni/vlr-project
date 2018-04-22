@@ -7,6 +7,7 @@ from baseline.data.ucf101 import UCF101, split
 from baseline.logger import Logger
 from tqdm import tqdm
 import pdb
+from tensorboardX import SummaryWriter
 import collections
 from sklearn.metrics import average_precision_score, recall_score
 import numpy as np
@@ -29,6 +30,26 @@ class AverageMeter(object):
     self.sum += val * n
     self.count += n
     self.avg = self.sum / self.count
+
+def data_tsne_plot(data_iter):
+  features = []
+  labels = []
+  writer = SummaryWriter('cachedir/tsne-log')
+  for batch_idx, batch in enumerate(data_iter):
+    rgb_features = torch.chunk(torch.mean(batch['rgb'], 1), len(batch['rgb']), 0)
+    target_labels = torch.chunk(batch['label'], len(batch['rgb']), 0)
+    for feature, label in zip(rgb_features, target_labels):
+      features.extend(feature.data)
+      # label_index = label[]
+      # labels.extend()
+
+  features = torch.stack(features)
+  writer.add_embedding(features)
+  writer.close()
+
+    
+    
+    
 
 
 def train(epoch, model, optimizer, data_iter, logger):
@@ -63,12 +84,8 @@ def train(epoch, model, optimizer, data_iter, logger):
 
 def compute_accuracy(output_labels, target_labels):
   output_labels = 1 * (output_labels > 0.5)
-  # pred_labels = np.stack([np.where(r == 1)[0] for r in output_labels])
-  # target_integer_labels = np.stack([np.where(r == 1)[0] for r in target_labels])
-  
   recall = 0
   target_labels = target_labels.astype(np.int32)
-  # recall = recall_score(output_labels, target_labels)
   precision = average_precision_score(target_labels, output_labels,
                                       average='micro')
   return recall, precision
@@ -101,6 +118,9 @@ def main(opts):
   action_net_optimizer = torch.optim.SGD(action_net.parameters(),
                                          lr=opts.lr,
                                          momentum=opts.momentum)
+  
+  # data_tsne_plot(data_iter)
+  pdb.set_trace()
   for epoch in range(opts.epochs):
     train(epoch, action_net, action_net_optimizer, data_iter, logger)
   

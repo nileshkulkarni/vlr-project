@@ -7,7 +7,7 @@ class ActionClassification(nn.Module):
     super(ActionClassification, self).__init__()
     self.opts = opts
     self.attention_flow_stream = StreamModule(feature_size)
-    self.attention_rgb_stream = StreamModule(feature_size)
+    self.attentition_rgb_stream = StreamModule(feature_size)
     self.classifier_flow_stream = StreamClassificationHead(feature_size, num_classes)
     self.classifier_rgb_stream = StreamClassificationHead(feature_size, num_classes)
     self.classifier_both = StreamClassificationHead(feature_size, num_classes)
@@ -15,10 +15,13 @@ class ActionClassification(nn.Module):
     
 
   def forward(self, rgb_features, flow_features):
-    wt_ft_rgb, attn_rgb = self.attention_rgb_stream(rgb_features)
+    #rgb B x T x 1024
+    #flow B x T x 1024
+    
+    wt_ft_rgb, attn_rgb = self.attentition_rgb_stream(rgb_features)
     wt_ft_flow, attn_flow = self.attention_flow_stream(flow_features)
-    class_rgb = self.classifier_flow_stream(wt_ft_flow)
-    class_flow = self.classifier_rgb_stream(wt_ft_rgb)
+    class_flow = self.classifier_flow_stream(wt_ft_flow)
+    class_rgb = self.classifier_rgb_stream(wt_ft_rgb)
     features_both = wt_ft_flow + wt_ft_rgb
     class_both = self.classifier_both(features_both)
     outputs = dict()
@@ -35,7 +38,7 @@ class ActionClassification(nn.Module):
     self.rgb_loss = self.multi_label_cross(outputs['class_rgb'], target_class)
     self.flow_loss = self.multi_label_cross(outputs['class_flow'], target_class)
     self.both_loss = self.multi_label_cross(outputs['class_both'], target_class)
-    self.rgb_sparsity = self.attention_rgb_stream.attention_module.l1_sparsity_loss(
+    self.rgb_sparsity = self.attentition_rgb_stream.attention_module.l1_sparsity_loss(
       outputs['attn_rgb'])
     self.flow_sparsity = self.attention_flow_stream.attention_module.l1_sparsity_loss(
       outputs['attn_flow'])
@@ -59,7 +62,7 @@ class StreamModule(nn.Module):
   def forward(self, x):
     # x is B x T x 1024
     attention = self.attention_module(x)  # B x T
-    attention_expand = attention.expand(x.size())
+    attention_expand = attention.expand(x.size()) #B X T x feature_size
     new_features = x + x * attention_expand*0
     weighted_features = torch.sum(new_features, 1)
     return weighted_features, attention
