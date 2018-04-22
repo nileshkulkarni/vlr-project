@@ -16,7 +16,7 @@ import numpy as np
 def data_tsne_plot(data_iter):
   features = []
   labels = []
-  writer = SummaryWriter('cachedir/tsne-log3/')
+  writer = SummaryWriter('cachedir/tsne-log4/')
   
   for batch_idx, batch in enumerate(data_iter):
     rgb_features = torch.chunk(batch['rgb'], len(batch['rgb']),
@@ -24,12 +24,11 @@ def data_tsne_plot(data_iter):
     target_labels = torch.chunk(batch['label'], len(batch['rgb']), 0)
     for feature, label in zip(rgb_features, target_labels):
       features.append(feature)
-      labels.append(label)
+      labels.append(label[0].numpy()[0])
 
   features = torch.cat(features, dim=0)
   print(features.size())
-  # pdb.set_trace()
-  writer.add_embedding(features[0:1000,:])
+  writer.add_embedding(features[0:100,:], metadata=labels[0:100])
   writer.close()
 
 def collate_fn(batch):
