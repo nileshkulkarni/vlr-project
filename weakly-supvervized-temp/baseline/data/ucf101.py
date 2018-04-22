@@ -169,11 +169,13 @@ class UCF101Temporal(Dataset):
     rgb_segments = []
     labels = []
     segments = self._segment_positions_and_labels[index]
+    
     for s in segments:
-      flow_segments.append(torch.from_numpy(np.mean(flow_features[s[0]:max(s[1],s[1]+1),:], axis=0)))
-      rgb_segments.append(
-          torch.from_numpy(np.mean(rgb_features[s[0]:max(s[1],s[1]+1), :], axis=0)))
-      labels.append(torch.Tensor([s[2]]))
+      if s[0] < rgb_features.shape[0]:
+        flow_segments.append(torch.from_numpy(np.mean(flow_features[s[0]:max(s[1],s[1]+1),:], axis=0)))
+        rgb_segments.append(
+            torch.from_numpy(np.mean(rgb_features[s[0]:max(s[1],s[1]+1), :], axis=0)))
+        labels.append(torch.Tensor([s[2]]))
     return (flow_segments,rgb_segments, labels)
   
   

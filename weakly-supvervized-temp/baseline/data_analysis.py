@@ -28,7 +28,7 @@ def data_tsne_plot(data_iter):
 
   features = torch.cat(features, dim=0)
   print(features.size())
-  writer.add_embedding(features[0:100,:], metadata=labels[0:100])
+  writer.add_embedding(features, metadata=labels)
   writer.close()
 
 def collate_fn(batch):
@@ -50,6 +50,7 @@ def main(opts):
   video_names = split(opts.ucf_dir)
   
   dataset = UCF101Temporal('val', video_names, opts)
+  
   data_iter = torch.utils.data.DataLoader(dataset, batch_size=opts.batch_size,
                                           shuffle=False, collate_fn=collate_fn)
   
