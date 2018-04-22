@@ -6,22 +6,31 @@ from torch.utils.data import Dataset
 import numpy as np
 from torch.autograd import Variable
 import pdb
+import csv
 
 class UCF101(Dataset):
-  def __init__(self, video_names, opts):
+  def __init__(self, dataset_name, video_names, opts):
     self._ucf_dir = opts.ucf_dir
     self._video_names = video_names
     self._feature_size = opts.feature_size
     
     self._file_names = []
     self._labels = []
+    self.class_labels(dataset_name, opts.labels_dir)
+
+    self._labels = []
     for file in os.listdir(self._ucf_dir):
       if file in self._video_names:
         self._file_names.append(file)
+        video_index = self.video2index[file]
+        self._labels.append(self.video_labels[video_index])
+    self._labels = np.stack(self._labels)
     self._num_classes = opts.num_classes
     self._combine_startegy = opts.combine_strategy
     self._segments = opts.segments
-    self._labels = torch.Tensor(len(self._file_names), self._num_classes).float().zero_()
+    self._labels = torch.from_numpy(self._labels).float()
+    # self._labels = torch.Tensor(len(self._file_names), self._num_classes).float().zero_()
+    
   def __len__(self):
     return len(self._file_names)
   
@@ -34,6 +43,30 @@ class UCF101(Dataset):
     data['rgb'] = rgb_features
     data['label'] = label
     return data
+
+  def class_labels(self, name, labels_dir):
+    ##
+   
+    class2index_file =  osp.join(labels_dir, 'class_dict.csv')
+    video2index_file = osp.join(labels_dir, 'video_indices_{}.csv'.format(name))
+    video2labels_file = osp.join(labels_dir, 'class_labels_{}.npy'.format(name))
+    
+    self.class2index = dict()
+    self.video2index = dict()
+    self.video_labels = None
+    with open(class2index_file,'r') as csvfile:
+      reader = csv.reader(csvfile)
+      for row in reader:
+        self.class2index[row[0]] = int(row[1])
+
+    with open(video2index_file,'r') as csvfile:
+      reader = csv.reader(csvfile)
+      for row in reader:
+        self.video2index[row[0]] = int(row[1])
+      
+    self.video_labels = np.load(video2labels_file)
+      
+    
 
   def forward_label(self, index):
     return Variable(self._labels[index]).cuda()

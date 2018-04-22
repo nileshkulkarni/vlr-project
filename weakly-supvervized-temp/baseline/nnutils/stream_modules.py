@@ -3,8 +3,9 @@ import torch.nn as nn
 
 
 class ActionClassification(nn.Module):
-  def __init__(self, feature_size, num_classes):
+  def __init__(self, feature_size, num_classes, opts):
     super(ActionClassification, self).__init__()
+    self.opts = opts
     self.attention_flow_stream = StreamModule(feature_size)
     self.attention_rgb_stream = StreamModule(feature_size)
     self.classifier_flow_stream = StreamClassificationHead(feature_size, num_classes)
@@ -39,11 +40,11 @@ class ActionClassification(nn.Module):
     self.flow_sparsity = self.attention_flow_stream.attention_module.l1_sparsity_loss(
       outputs['attn_flow'])
     losses = {}
-    losses['rgb_loss'] = self.rgb_loss
-    losses['flow_loss'] = self.flow_loss
-    losses['both_loss'] = self.both_loss
-    losses['rbg_sparsity_loss'] = self.rgb_sparsity
-    losses['flow_sparsity_loss'] = self.flow_sparsity
+    losses['rgb_loss'] = self.opts.cls_wt*self.rgb_loss
+    losses['flow_loss'] = self.opts.cls_wt*self.flow_loss
+    losses['both_loss'] = self.opts.cls_wt*self.both_loss
+    losses['rbg_sparsity_loss'] = self.opts.attn_wt*self.rgb_sparsity
+    losses['flow_sparsity_loss'] = self.opts.attn_wt*self.flow_sparsity
     
     self.total_loss = self.rgb_loss + self.flow_loss + self.both_loss \
                       + self.rgb_sparsity + self.flow_sparsity
