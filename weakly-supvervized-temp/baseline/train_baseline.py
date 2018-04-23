@@ -60,7 +60,12 @@ def train(epoch, model, optimizer, data_iter, logger, opts):
   with tqdm(enumerate(data_iter, 1), total=len(data_iter),
             desc='Epoch {} '.format(epoch), unit="iteration") as pbar:
     for batch_idx, batch in pbar:
+      opts.log_now = 0
       iteration = epoch * len(data_iter) + batch_idx
+      opts.iteration = iteration
+      if logging == 1 and (iteration % opts.log_every) == 0:
+        opts.log_now = 1
+      
       outputs = model(batch['rgb'], batch['flow'])
       target_labels = batch['label']
       losses = model.build_loss(outputs, target_labels)
@@ -85,6 +90,7 @@ def train(epoch, model, optimizer, data_iter, logger, opts):
         logger.histo_summary('activation_rgb',
                              outputs['class_rgb'].data.cpu().numpy(),
                              iteration)
+        
       
       optimizer.zero_grad()
       total_loss.backward()
@@ -120,7 +126,7 @@ def main(opts):
   
   logdir = strftime("%Y-%m-%d-%H-%M-%S", gmtime())
   
-  logger = Logger(osp.join(opts.cache_dir, 'logs', logdir), 'baseline', )
+  opts.logger = logger = Logger(osp.join(opts.cache_dir, 'logs', logdir), 'baseline', )
   
   action_net = ActionClassification(opts.feature_size, opts.num_classes, opts)
   action_net.cuda()
