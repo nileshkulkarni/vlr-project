@@ -3,8 +3,8 @@ import argparse
 def get_opts():
   parser = argparse.ArgumentParser('Weakly supv AC')
   parser.add_argument('--cache_dir', type=str, default='cachedir')
-  parser.add_argument('--ucf_dir', type=str, default='/scratch/nileshk/vlr-project/val_features/')
-  parser.add_argument('--labels_dir', type=str, default='/scratch/nileshk/vlr-project/labels/')
+  parser.add_argument('--ucf_dir', type=str, default='/scratch/nileshk/vlr-project/thumos_data/')
+  parser.add_argument('--labels_dir', type=str, default='/scratch/nileshk/vlr-project/thumos_data/labels/')
   parser.add_argument('--feature_size', type=int, default=1024)
   parser.add_argument('--num_classes', type=int, default=20)
   parser.add_argument('--combine_strategy', type=str, default='uniform')

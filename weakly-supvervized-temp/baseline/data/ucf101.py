@@ -9,9 +9,9 @@ import pdb
 import csv
 
 class UCF101(Dataset):
-  def __init__(self, dataset_name, video_names, opts):
-    self._ucf_dir = opts.ucf_dir
-    self._video_names = video_names
+  def __init__(self, dataset_name, opts):
+    self._ucf_dir = osp.join(opts.ucf_dir, "{}_features".format(dataset_name))
+    self._ignore_names = [".", ".."]
     self._feature_size = opts.feature_size
     
     self._file_names = []
@@ -20,11 +20,10 @@ class UCF101(Dataset):
 
     self._labels = []
     for file in os.listdir(self._ucf_dir):
-      if file in self._video_names:
+      if file not in self._ignore_names:
         self._file_names.append(file)
         video_index = self.video2index[file]
         self._labels.append(self.video_labels[video_index])
-    
     self._labels = np.stack(self._labels)
     self._num_classes = opts.num_classes
     self._combine_startegy = opts.combine_strategy

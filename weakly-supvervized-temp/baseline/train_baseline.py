@@ -53,12 +53,35 @@ def data_tsne_plot(data_iter):
 logging = 1
 
 
+def valid(epoch, model, data_iter, logger, opts):
+  model.eval()
+  avg_loss = AverageMeter()
+  avg_precision = AverageMeter()
+  with tqdm(enumerate(data_iter, 1), total=len(data_iter),
+            desc='VL Epoch {} '.format(epoch), unit="iteration") as pbar:
+    for batch_idx, batch in pbar:
+      opts.log_now = 0
+      outputs = model(batch['rgb'], batch['flow'])
+      target_labels = batch['label']
+      losses = model.build_loss(outputs, target_labels)
+      recall, precision = compute_accuracy(
+        outputs['class_rgb'].data.cpu().numpy(),
+        target_labels.data.cpu().numpy())
+      total_loss = torch.mean(losses['total_loss'])
+      avg_loss.update(total_loss.data[0])
+      avg_precision.update(precision)
+      pbar.set_postfix(loss=avg_loss.avg, precision=avg_precision.avg)
+    info = {'valid/precision': avg_precision.avg}
+    for key, value in info.items():
+      logger.scalar_summary(key, value, opts.iteration)
+
+
 def train(epoch, model, optimizer, data_iter, logger, opts):
   model.train()
   avg_loss = AverageMeter()
   avg_precision = AverageMeter()
   with tqdm(enumerate(data_iter, 1), total=len(data_iter),
-            desc='Epoch {} '.format(epoch), unit="iteration") as pbar:
+            desc='TR Epoch {} '.format(epoch), unit="iteration") as pbar:
     for batch_idx, batch in pbar:
       opts.log_now = 0
       iteration = epoch * len(data_iter) + batch_idx
@@ -90,7 +113,6 @@ def train(epoch, model, optimizer, data_iter, logger, opts):
         logger.histo_summary('activation_rgb',
                              outputs['class_rgb'].data.cpu().numpy(),
                              iteration)
-        
       
       optimizer.zero_grad()
       total_loss.backward()
@@ -119,15 +141,24 @@ from time import gmtime, strftime
 
 
 def main(opts):
-  video_names = split(opts.ucf_dir)
+
+  dataset_train = UCF101('val', opts)
+  dataset_valid = UCF101('test', opts)
   
-  dataset = UCF101('val', video_names, opts)
-  data_iter = torch.utils.data.DataLoader(dataset, batch_size=opts.batch_size,
-                                          shuffle=True, collate_fn=collate_fn)
+  data_iter_train = torch.utils.data.DataLoader(dataset_train,
+                                                batch_size=opts.batch_size,
+                                                shuffle=True,
+                                                collate_fn=collate_fn)
+  
+  data_iter_valid = torch.utils.data.DataLoader(dataset_valid,
+                                                batch_size=opts.batch_size,
+                                                shuffle=True,
+                                                collate_fn=collate_fn)
   
   logdir = strftime("%Y-%m-%d-%H-%M-%S", gmtime())
   
-  opts.logger = logger = Logger(osp.join(opts.cache_dir, 'logs', logdir), 'baseline', )
+  opts.logger = logger = Logger(osp.join(opts.cache_dir, 'logs', logdir),
+                                'baseline', )
   
   action_net = ActionClassification(opts.feature_size, opts.num_classes, opts)
   action_net.cuda()
@@ -138,7 +169,10 @@ def main(opts):
   # data_tsne_plot(data_iter)
   # pdb.set_trace()
   for epoch in range(opts.epochs):
-    train(epoch, action_net, action_net_optimizer, data_iter, logger, opts)
+    train(epoch, action_net, action_net_optimizer, data_iter_train, logger,
+          opts)
+    if epoch % 4 == 0 and epoch > 0:
+      valid(epoch, action_net, data_iter_valid, logger, opts)
   return
 
 
