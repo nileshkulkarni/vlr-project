@@ -14,7 +14,8 @@ class ActionClassification(nn.Module):
                                                           num_classes)
     self.classifier_both = StreamClassificationHead(feature_size, num_classes)
     self.multi_label_cross = nn.MultiLabelSoftMarginLoss()
-  
+    # self.multi_label_cross = nn.BCEWithLogitsLoss()
+
   def forward(self, rgb_features, flow_features):
     # rgb B x T x 1024
     # flow B x T x 1024
@@ -79,12 +80,25 @@ class StreamModule(nn.Module):
 class StreamClassificationHead(nn.Module):
   def __init__(self, feature_size, num_classes):
     super(StreamClassificationHead, self).__init__()
-    self.classifier = nn.Linear(feature_size, num_classes)
+    self.mlp_1 = nn.Linear(feature_size, 256)
+    self.mlp_2 = nn.Linear(256, 256)
+    self.mlp_3 = nn.Linear(256, 256)
+    self.mlp_4 = nn.Linear(256, num_classes)
+    self.relu = nn.ReLU()
+    # self.classifier = nn.Linear(feature_size, num_classes)
+    
     self.sigmoid = nn.Sigmoid()
   
   def forward(self, x):
-    x = self.classifier(x)
-    x = self.sigmoid(x)
+    x = self.mlp_1(x)
+    x = self.relu(x)
+    x = self.mlp_2(x)
+    x = self.relu(x)
+    x = self.mlp_3(x)
+    x = self.relu(x)
+    x = self.mlp_4(x)
+    # x = self.classifier(x)
+    # x = self.sigmoid(x)
     return x
 
 

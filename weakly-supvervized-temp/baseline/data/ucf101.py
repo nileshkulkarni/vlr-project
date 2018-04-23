@@ -93,9 +93,35 @@ class UCF101(Dataset):
       for i in range(self._segments):
         start = (i*segment_len)
         end = (i+1)*segment_len
+        seq = np.arange(start, end)
+        flow_segments[i, :] = np.mean(np.take(flow_features,seq, axis=0, mode='wrap'), axis=0)
+        rgb_segments[i, :] = np.mean(np.take(rgb_features,seq, axis=0, mode='wrap'), axis=0)
+    
+    if self._combine_startegy == 'strat1':
+      offset = np.random.choice(segment_len, 1)
+      for i in range(self._segments):
+        start = (i * segment_len) + offset
+        end = (i + 1) * segment_len + offset
+        seq = np.arange(start, end)
+        flow_segments[i, :] = np.mean(
+          np.take(flow_features, seq, axis=0, mode='wrap'),
+          axis=0)
+        rgb_segments[i, :] = np.mean(
+          np.take(rgb_features, seq, axis=0, mode='wrap'),
+          axis=0)
         
-        flow_segments[i, :] = np.mean(np.take(flow_features,np.arange(start, end), axis=0, mode='wrap'), axis=0)
-        rgb_segments[i, :] = np.mean(np.take(rgb_features,np.arange(start, end), axis=0, mode='wrap'), axis=0)
+    if self._combine_startegy == 'strat2':
+      for i in range(self._segments):
+        start = (i * segment_len)
+        end = (i + 1) * segment_len
+        seq = np.random.choice(segment_len, int(segment_len * 0.8)) + start
+    
+        flow_segments[i, :] = np.mean(
+          np.take(flow_features, seq, axis=0, mode='wrap'),
+          axis=0)
+        rgb_segments[i, :] = np.mean(
+          np.take(rgb_features, seq, axis=0, mode='wrap'),
+          axis=0)
 
     ## rgb_feautes are of the T depending on the length of the video.
     #  Each segment has 1024 dimensional feature.

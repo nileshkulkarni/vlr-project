@@ -102,7 +102,8 @@ def compute_accuracy(output_labels, target_labels):
   recall = 0
   target_labels = target_labels.astype(np.int32)
   precision = average_precision_score(target_labels, output_labels,
-                                      average='micro')
+                                      average=None)
+  precision = np.nanmean(precision)
   return recall, precision
 
 
