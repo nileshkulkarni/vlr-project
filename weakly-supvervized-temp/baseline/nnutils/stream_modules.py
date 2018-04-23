@@ -43,11 +43,11 @@ class ActionClassification(nn.Module):
     self.flow_sparsity = self.attention_flow_stream.attention_module.l1_sparsity_loss(
       outputs['attn_flow'])
     losses = {}
-    losses['rgb_loss'] = self.opts.cls_wt*self.rgb_loss
-    losses['flow_loss'] = self.opts.cls_wt*self.flow_loss
-    losses['both_loss'] = self.opts.cls_wt*self.both_loss
-    losses['rbg_sparsity_loss'] = self.opts.attn_wt*self.rgb_sparsity
-    losses['flow_sparsity_loss'] = self.opts.attn_wt*self.flow_sparsity
+    losses['rgb_loss'] = self.opts.cls_wt_rgb*self.rgb_loss
+    losses['flow_loss'] = self.opts.cls_wt_flow*self.flow_loss
+    losses['both_loss'] = self.opts.cls_wt_both*self.both_loss
+    losses['rgb_sparsity_loss'] = self.opts.sparsity_wt_rgb*self.rgb_sparsity
+    losses['flow_sparsity_loss'] = self.opts.sparsity_wt_flow*self.flow_sparsity
     
     self.total_loss = self.rgb_loss + self.flow_loss + self.both_loss \
                       + self.rgb_sparsity + self.flow_sparsity
@@ -63,7 +63,7 @@ class StreamModule(nn.Module):
     # x is B x T x 1024
     attention = self.attention_module(x)  # B x T
     attention_expand = attention.expand(x.size()) #B X T x feature_size
-    new_features = x + x * attention_expand*0
+    new_features = x * attention_expand
     weighted_features = torch.sum(new_features, 1)
     return weighted_features, attention
 

@@ -26,6 +26,7 @@ def data_tsne_plot(data_iter):
       features.append(feature)
       labels.append(label[0].numpy()[0])
 
+  labels = ['/{}/'.format(label) for label in labels]
   features = torch.cat(features, dim=0)
   print(features.size())
   writer.add_embedding(features, metadata=labels)

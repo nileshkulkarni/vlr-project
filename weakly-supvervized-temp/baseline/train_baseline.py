@@ -31,28 +31,29 @@ class AverageMeter(object):
     self.count += n
     self.avg = self.sum / self.count
 
+
 def data_tsne_plot(data_iter):
   features = []
   labels = []
   writer = SummaryWriter('cachedir/tsne-log')
   for batch_idx, batch in enumerate(data_iter):
-    rgb_features = torch.chunk(torch.mean(batch['rgb'], 1), len(batch['rgb']), 0)
+    rgb_features = torch.chunk(torch.mean(batch['rgb'], 1), len(batch['rgb']),
+                               0)
     target_labels = torch.chunk(batch['label'], len(batch['rgb']), 0)
     for feature, label in zip(rgb_features, target_labels):
       features.extend(feature.data)
       # label_index = label[]
       # labels.extend()
-
+  
   features = torch.stack(features)
   writer.add_embedding(features)
   writer.close()
 
-    
-    
-    
+
+logging = 1
 
 
-def train(epoch, model, optimizer, data_iter, logger):
+def train(epoch, model, optimizer, data_iter, logger, opts):
   model.train()
   avg_loss = AverageMeter()
   avg_precision = AverageMeter()
@@ -66,16 +67,24 @@ def train(epoch, model, optimizer, data_iter, logger):
       recall, precision = compute_accuracy(
         outputs['class_rgb'].data.cpu().numpy(),
         target_labels.data.cpu().numpy())
-      total_loss = torch.mean(losses['rgb_loss'])
+      total_loss = torch.mean(losses['total_loss'])
       # print(total_loss)
       avg_loss.update(total_loss.data[0])
       avg_precision.update(precision)
       pbar.set_postfix(loss=avg_loss.avg, precision=avg_precision.avg)
-      info = dict(
-        [(key, torch.mean(item).data.cpu().numpy()[0]) for (key, item) in
-         losses.items()])
-      for tag, value in info.items():
-        logger.scalar_summary(tag, value, iteration)
+      if logging == 1 and (iteration % opts.log_every) == 0:
+        info = dict(
+          [(key, torch.mean(item).data.cpu().numpy()[0]) for (key, item) in
+           losses.items()])
+        for tag, value in info.items():
+          logger.scalar_summary(tag, value, iteration)
+        
+        logger.histo_summary('attn_rgb',
+                             outputs['attn_rgb'].data.cpu().numpy(),
+                             iteration)
+        logger.histo_summary('activation_rgb',
+                             outputs['class_rgb'].data.cpu().numpy(),
+                             iteration)
       
       optimizer.zero_grad()
       total_loss.backward()
@@ -120,10 +129,9 @@ def main(opts):
                                          momentum=opts.momentum)
   
   # data_tsne_plot(data_iter)
-  pdb.set_trace()
+  # pdb.set_trace()
   for epoch in range(opts.epochs):
-    train(epoch, action_net, action_net_optimizer, data_iter, logger)
-  
+    train(epoch, action_net, action_net_optimizer, data_iter, logger, opts)
   return
 
 
