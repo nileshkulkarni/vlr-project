@@ -123,7 +123,21 @@ class UCF101(Dataset):
         rgb_segments[i, :] = np.mean(
           np.take(rgb_features, seq, axis=0, mode='wrap'),
           axis=0)
+     if self._combine_startegy == 'strat3':
+       for i in range(self._segments):
+         sample_range = total_segments
+         while sample_range < self._segments+1:
+           sample_range = sample_range + total_segments
+          
+         sampledN = np.round(np.linspace(0, sample_range, self._segments+1)).astype(np.int32)
+         #import pdb;pdb.set_trace()
 
+         differences = sampledN[1:] - sampledN[0:-1]
+         randoms = np.random.rand(self._segments)
+         K = sampledN[0:-1] + np.round(randoms*differences).astype(np.int)
+         K = np.mod(K, np.ones(K.shape)*total_segments).astype(np.int)
+         flow_segments = flow_features[K, :]
+         rgb_segments = rgb_features[K, :]
     ## rgb_feautes are of the T depending on the length of the video.
     #  Each segment has 1024 dimensional feature.
     flow_segments = Variable(torch.from_numpy(flow_segments).cuda())
