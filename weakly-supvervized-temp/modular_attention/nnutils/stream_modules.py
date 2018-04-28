@@ -88,17 +88,18 @@ class StreamClassificationHead(nn.Module):
     return x
 
 
-class ClassAttentionModule:
+class ClassAttentionModule(nn.Module):
   def __init__(self, feature_size, num_classes):
     super(ClassAttentionModule, self).__init__()
     self.num_classes = num_classes
     self.modules = nn.ModuleList(
-      [AttentionModule(i, feature_size) for i in range(self.num_classes)])
-    for i in range(num_classes):
-      self.modules.append(AttentionModule(feature_size, i))
-  
+      [nn.Linear(100, feature_size) for i in range(self.num_classes)])
+    
   def forward(self,class_index, x):
-    return self.modules[class_index](x)
+    import pdb;pdb.set_trace()
+    modules = [m for m in enumerate(self.modules)]
+    return modules[class_index](x)
+  
   
   def build_binary_loss(self, class_index, pred_labels, target_labels):
     return self.modules[class_index].build_binary_loss(pred_labels, target_labels)
@@ -108,18 +109,19 @@ class AttentionModule(nn.Module):
     super(AttentionModule, self).__init__()
     self.class_id = class_id
     self.feature_size = feature_size
-    self.fc1 = nn.Linear(self.feature_size, 256)
-    self.relu = nn.ReLU()
-    self.fc2 = nn.Linear(256, 1)
-    self.sigmoid = nn.Sigmoid()
-    
+    #self.fc1 = nn.Linear(self.feature_size, 256)
+    #self.relu = nn.ReLU()
+    #self.fc2 = nn.Linear(256, 1)
+    #self.sigmoid = nn.Sigmoid()
+    self.net = nn.Sequential(nn.Linear(self.feature_size, 256),nn.ReLU(),nn.Linear(256, 1),nn.Sigmoid())
   
   def forward(self, feature_segments):
     ## B x T x 1024
-    x = self.fc1(feature_segments)
-    x = self.relu(x)
-    x = self.fc2(x)
-    x = self.sigmoid(x)
+    #x = self.fc1(feature_segments)
+    #x = self.relu(x)
+    #x = self.fc2(x)
+    #x = self.sigmoid(x)
+    x = self.net(feature_segments)
     return x  ## B x T
 
   def build_binary_loss(self, pred_labels, target_labels):

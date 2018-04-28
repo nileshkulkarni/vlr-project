@@ -3,7 +3,7 @@ import torch.nn
 import os.path as osp
 from modular_attention.utils.parser import get_opts
 from modular_attention.nnutils.stream_modules import ClassAttentionModule
-from modular_attention.data.ucf101 import UCF101, split
+from modular_attention.data.ucf101 import UCF101, split, UCF101_modular
 from modular_attention.logger import Logger
 from tqdm import tqdm
 import pdb
@@ -55,9 +55,11 @@ def train(epoch, model, optimizer, data_iter, logger, opts):
       
       ## assuming batch contains n frames, each with label, and class_id for batch
       
-      class_id = batch[2]
-      input_frames = batch[0]
-      target_labels = batch[1]
+      #import pdb;pdb.set_trace()
+      class_id = batch['pos_class']
+      input_frames = batch['flow_features']
+      #input_frames = batch[0]
+      target_labels = batch['labels']
       
       output_labels = model(class_id, input_frames)
       loss = model.build_binary_loss(class_id, output_labels, target_labels)
@@ -98,8 +100,8 @@ from time import gmtime, strftime
 def main(opts):
   video_names = split(opts.ucf_dir)
   
-  dataset = UCF101('val', video_names, opts)
-  data_iter = torch.utils.data.DataLoader(dataset, batch_size=opts.batch_size,
+  dataset = UCF101_modular('val', opts)
+  data_iter = torch.utils.data.DataLoader(dataset, batch_size=1,
                                           shuffle=True, collate_fn=collate_fn)
   
   logdir = strftime("%Y-%m-%d-%H-%M-%S", gmtime())
