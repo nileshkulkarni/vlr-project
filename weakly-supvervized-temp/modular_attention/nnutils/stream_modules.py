@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import pdb
 
 
 class ActionClassification(nn.Module):
@@ -88,18 +89,33 @@ class StreamClassificationHead(nn.Module):
     return x
 
 
-class ClassAttentionModule(nn.Module):
+class ClassAttentionModule:
   def __init__(self, feature_size, num_classes):
-    super(ClassAttentionModule, self).__init__()
     self.num_classes = num_classes
-    self.modules = nn.ModuleList(
-      [nn.Linear(100, feature_size) for i in range(self.num_classes)])
+    self.modules = [AttentionModule(i, feature_size) for i in range(self.num_classes)]
     
-  def forward(self,class_index, x):
-    import pdb;pdb.set_trace()
-    modules = [m for m in enumerate(self.modules)]
-    return modules[class_index](x)
+  def forward(self, class_index, x):
+    pdb.set_trace()
+    return self.modules[class_index](x)
+
+  def cuda(self):
+    for m in self.modules:
+      m.cuda()
+    return
   
+  def parameters(self):
+    p = []
+    for m in self.modules:
+      p.extend(m.parameters())
+    return p
+  
+  def train(self):
+    for m in self.modules:
+      m.train()
+  
+  def eval(self):
+    for m in self.modules:
+      m.eval()
   
   def build_binary_loss(self, class_index, pred_labels, target_labels):
     return self.modules[class_index].build_binary_loss(pred_labels, target_labels)
@@ -109,18 +125,12 @@ class AttentionModule(nn.Module):
     super(AttentionModule, self).__init__()
     self.class_id = class_id
     self.feature_size = feature_size
-    #self.fc1 = nn.Linear(self.feature_size, 256)
-    #self.relu = nn.ReLU()
-    #self.fc2 = nn.Linear(256, 1)
-    #self.sigmoid = nn.Sigmoid()
-    self.net = nn.Sequential(nn.Linear(self.feature_size, 256),nn.ReLU(),nn.Linear(256, 1),nn.Sigmoid())
+    self.net = nn.Sequential(nn.Linear(self.feature_size, 256),
+                             nn.ReLU(),
+                             nn.Linear(256, 1),
+                             nn.Sigmoid())
   
   def forward(self, feature_segments):
-    ## B x T x 1024
-    #x = self.fc1(feature_segments)
-    #x = self.relu(x)
-    #x = self.fc2(x)
-    #x = self.sigmoid(x)
     x = self.net(feature_segments)
     return x  ## B x T
 

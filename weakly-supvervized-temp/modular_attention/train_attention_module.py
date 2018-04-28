@@ -61,7 +61,7 @@ def train(epoch, model, optimizer, data_iter, logger, opts):
       #input_frames = batch[0]
       target_labels = batch['labels']
       
-      output_labels = model(class_id, input_frames)
+      output_labels = model.forward(class_id, input_frames)
       loss = model.build_binary_loss(class_id, output_labels, target_labels)
       acc = compute_accuracy(output_labels, target_labels)
       avg_loss.update(loss.data[0])
