@@ -85,20 +85,21 @@ class StreamClassificationHead(nn.Module):
     self.mlp_3 = nn.Linear(256, 256)
     self.mlp_4 = nn.Linear(256, num_classes)
     self.relu = nn.ReLU()
-    # self.classifier = nn.Linear(feature_size, num_classes)
+    self.classifier = nn.Linear(feature_size, num_classes)
     
     self.sigmoid = nn.Sigmoid()
   
   def forward(self, x):
-    x = self.mlp_1(x)
-    x = self.relu(x)
-    x = self.mlp_2(x)
-    x = self.relu(x)
-    x = self.mlp_3(x)
-    x = self.relu(x)
-    x = self.mlp_4(x)
-    # x = self.classifier(x)
+    # x = self.mlp_1(x)
+    # x = self.relu(x)
+    # x = self.mlp_2(x)
+    # x = self.relu(x)
+    # x = self.mlp_3(x)
+    # x = self.relu(x)
+    # x = self.mlp_4(x)
+    x = self.classifier(x)
     # x = self.sigmoid(x)
+    ## returns logits.
     return x
 
 
