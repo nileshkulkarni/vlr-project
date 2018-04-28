@@ -14,8 +14,7 @@ class ActionClassification(nn.Module):
                                                           num_classes)
     self.classifier_both = StreamClassificationHead(feature_size, num_classes)
     self.multi_label_cross = nn.MultiLabelSoftMarginLoss()
-    # self.multi_label_cross = nn.BCEWithLogitsLoss()
-
+  
   def forward(self, rgb_features, flow_features):
     # rgb B x T x 1024
     # flow B x T x 1024
@@ -36,12 +35,6 @@ class ActionClassification(nn.Module):
     outputs['class_flow'] = class_flow
     outputs['attn_rgb'] = attn_rgb
     outputs['attn_flow'] = attn_flow
-    # TCAM
-    tcam_rgb = self.classifier_rgb_stream(rgb_features)
-    tcam_flow = self.classifier_flow_stream(flow_features)
-    
-    outputs['tcam_rgb'] = tcam_rgb
-    outputs['tcam_flow'] = tcam_flow
     
     return outputs
   
@@ -86,41 +79,40 @@ class StreamModule(nn.Module):
 class StreamClassificationHead(nn.Module):
   def __init__(self, feature_size, num_classes):
     super(StreamClassificationHead, self).__init__()
-    self.mlp_1 = nn.Linear(feature_size, num_classes)
-    self.mlp_2 = nn.Linear(256, 256)
-    self.mlp_3 = nn.Linear(256, 256)
-    self.mlp_4 = nn.Linear(256, num_classes)
-    self.relu = nn.ReLU()
     self.classifier = nn.Linear(feature_size, num_classes)
-    
     self.sigmoid = nn.Sigmoid()
   
   def forward(self, x):
-    x = self.mlp_1(x)
-    #x = self.relu(x)
-    #x = self.mlp_2(x)
-    #x = self.relu(x)
-    #x = self.mlp_3(x)
-    #x = self.relu(x)
-    #x = self.mlp_4(x)
-    #x = self.dropout(x)
-    # x = self.sigmoid(x)
-    ## returns logits.
+    x = self.classifier(x)
+    x = self.sigmoid(x)
     return x
 
 
-## It becomes easier if we have a fixed number of segments?
-## Batch processing is faster.
-## Rethink about it?
+class ClassAttentionModule:
+  def __init__(self, feature_size, num_classes):
+    super(ClassAttentionModule, self).__init__()
+    self.num_classes = num_classes
+    self.modules = nn.ModuleList(
+      [AttentionModule(i, feature_size) for i in range(self.num_classes)])
+    for i in range(num_classes):
+      self.modules.append(AttentionModule(feature_size, i))
+  
+  def forward(self,class_index, x):
+    return self.modules[class_index](x)
+  
+  def build_binary_loss(self, class_index, pred_labels, target_labels):
+    return self.modules[class_index].build_binary_loss(pred_labels, target_labels)
 
 class AttentionModule(nn.Module):
-  def __init__(self, feature_size):
+  def __init__(self, class_id, feature_size):
     super(AttentionModule, self).__init__()
+    self.class_id = class_id
     self.feature_size = feature_size
     self.fc1 = nn.Linear(self.feature_size, 256)
     self.relu = nn.ReLU()
     self.fc2 = nn.Linear(256, 1)
     self.sigmoid = nn.Sigmoid()
+    
   
   def forward(self, feature_segments):
     ## B x T x 1024
@@ -129,6 +121,7 @@ class AttentionModule(nn.Module):
     x = self.fc2(x)
     x = self.sigmoid(x)
     return x  ## B x T
-  
-  def l1_sparsity_loss(self, x):
-    return torch.sum(x, dim=1)
+
+  def build_binary_loss(self, pred_labels, target_labels):
+    ## pred_labels B x 1 ## target_labels B x 1
+    return torch.nn.functional.binary_cross_entropy(pred_labels, target_labels)

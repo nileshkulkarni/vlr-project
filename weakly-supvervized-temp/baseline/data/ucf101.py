@@ -72,7 +72,6 @@ class UCF101(Dataset):
         return Variable(self._labels[index]).cuda()
 
     def forward_video(self, index):
-        
         filename = self._file_names[index]
         flow_file = osp.join(self._ucf_dir, filename, 'features_flow.npy')
         rgb_file = osp.join(self._ucf_dir, filename, 'features_rgb.npy')
@@ -159,7 +158,6 @@ class UCF101(Dataset):
         numInputs = Variable(torch.from_numpy(numInputs))
 
         return flow_segments, rgb_segments, numInputs
-
 
 class UCF101Temporal(Dataset):
     def __init__(self, dataset_name, video_names, opts):
@@ -259,7 +257,7 @@ class UCF101Temporal(Dataset):
 
 
 def split(data_dir):
-    all_files = []
-    for file in os.listdir(data_dir):
-        all_files.append(file)
-    return all_files
+  all_files = []
+  for file in os.listdir(data_dir):
+    all_files.append(file)
+  return all_files
