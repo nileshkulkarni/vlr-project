@@ -12,6 +12,8 @@ import collections
 from sklearn.metrics import average_precision_score, recall_score
 import numpy as np
 
+from baseline.data_loader_edit import UCF101_independent
+
 
 class AverageMeter(object):
   """Computes and stores the average and current value"""
@@ -83,6 +85,7 @@ def train(epoch, model, optimizer, data_iter, logger, opts):
   with tqdm(enumerate(data_iter, 1), total=len(data_iter),
             desc='TR Epoch {} '.format(epoch), unit="iteration") as pbar:
     for batch_idx, batch in pbar:
+      import pdb;pdb.set_trace()
       opts.log_now = 0
       iteration = epoch * len(data_iter) + batch_idx
       opts.iteration = iteration
@@ -144,9 +147,15 @@ def main(opts):
 
   dataset_train = UCF101('val', opts)
   dataset_valid = UCF101('test', opts)
+  dataset_check = UCF101_independent('val', opts)
   
   data_iter_train = torch.utils.data.DataLoader(dataset_train,
                                                 batch_size=opts.batch_size,
+                                                shuffle=True,
+                                                collate_fn=collate_fn)
+  
+  data_iter_check = torch.utils.data.DataLoader(dataset_check,
+                                                batch_size=1,#opts.batch_size,
                                                 shuffle=True,
                                                 collate_fn=collate_fn)
   
@@ -162,17 +171,24 @@ def main(opts):
   
   action_net = ActionClassification(opts.feature_size, opts.num_classes, opts)
   action_net.cuda()
-  action_net_optimizer = torch.optim.SGD(action_net.parameters(),
-                                         lr=opts.lr,
-                                         momentum=opts.momentum)
+  action_net_optimizer = torch.optim.Adam(action_net.parameters(),
+                                         lr=opts.lr)#,
+                                         #momentum=opts.momentum)
   
   # data_tsne_plot(data_iter)
   # pdb.set_trace()
+  
   for epoch in range(opts.epochs):
-    train(epoch, action_net, action_net_optimizer, data_iter_train, logger,
+    train(epoch, action_net, action_net_optimizer, data_iter_check, logger,
           opts)
     if epoch % 4 == 0 and epoch > 0:
       valid(epoch, action_net, data_iter_valid, logger, opts)
+      torch.save({'state_dict' : action_net.state_dict()}
+	  , '/home/smynepal/Projects/VLR/I3D/train/vlr-project/weakly-supvervized-temp/saved_models/action_net_reg_00001_one_layer.pkl')
+  
+  
+  
+
   return
 
 
