@@ -90,14 +90,27 @@ class StreamModule(nn.Module):
     weighted_features = torch.sum(new_features, 1)
     return weighted_features, attention  # ( B x num_class x feature_size , B x T x num_class)
 
+class ClassifierModule(nn.Module):
+  # performs 0/1 classification
+  def __init__(self, class_index, feature_size):
+    super(ClassifierModule, self).__init__()
+    self.mlp1 = nn.Linear(feature_size, 256)
+    self.mlp2 = nn.Linear(256, 1)
+    self.relu = nn.ReLU()
+    self.sigmoid = nn.Sigmoid()
+
+  def forward(self, x):
+    x = self.mlp1(x)
+    x = self.relu(x)
+    x = self.mlp2(x)
+    return x
 
 class StreamClassificationHead(nn.Module):
   def __init__(self, feature_size, num_classes):
     super(StreamClassificationHead, self).__init__()
     self.num_classes = num_classes
-    self.classifier = nn.ModuleList(
-      [nn.Linear(feature_size, 1) for i in range(num_classes)])
-    self.sigmoid = nn.Sigmoid()
+    self.classifier_modules = nn.ModuleList(
+      [ClassifierModule(i, feature_size) for i in range(num_classes)])
   
   def forward(self, x):
     # x :  B x num_class x feature_size
@@ -105,10 +118,9 @@ class StreamClassificationHead(nn.Module):
     outs = []
    
     for i in range(self.num_classes):
-      outs.append(self.classifier[i](x[:,i,:]))
+      outs.append(self.classifier_modules[i](x[:, i, :]))
     outs = torch.cat(outs, dim=1)  # B x num_classes x 1
     # B x num_class
-    outs = self.sigmoid(outs)
     return outs
 
 class ClassAttentionModule(nn.Module):
