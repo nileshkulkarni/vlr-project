@@ -86,7 +86,7 @@ class StreamModule(nn.Module):
     attention_expand = attention.unsqueeze(3).expand(
       torch.Size([attention.size(0),attention.size(1),attention.size(2), x.size(2)]))  # B x T x num_clas x feature_size
     x_expand = x.unsqueeze(2).expand(attention_expand.size())  # B x T x num_class x feature_size
-    new_features = x_expand * attention_expand
+    new_features = x_expand * attention_expand # B x T x num_classes x feature_size
     weighted_features = torch.sum(new_features, 1)
     return weighted_features, attention  # ( B x num_class x feature_size , B x T x num_class)
 
@@ -111,48 +111,29 @@ class StreamClassificationHead(nn.Module):
     outs = self.sigmoid(outs)
     return outs
 
-
-class ClassAttentionModule:
+class ClassAttentionModule(nn.Module):
   def __init__(self, feature_size, num_classes):
+    super(ClassAttentionModule, self).__init__()
     self.num_classes = num_classes
-    self.modules = [AttentionModule(i, feature_size) for i in
-                    range(self.num_classes)]
-  
+    self.attention_modules = nn.ModuleList([AttentionModule(i, feature_size) for i in range(num_classes)])
+
   def forward(self, x, class_index=None):
-    # pdb.set_trace()
     if class_index is None:
       out = []
-      for m in self.modules:
+      for m in self.attention_modules:
         out.append(m(x))  ## m(x) B x T x 1024
       out = torch.stack(out).squeeze(3)
       out = out.permute(1, 2, 0)
       return out
     else:
-      return self.modules[class_index](x)
-  
-  def cuda(self):
-    for m in self.modules:
-      m.cuda()
-    return
-  
-  def parameters(self):
-    p = []
-    for m in self.modules:
-      p.extend(m.parameters())
-    return p
-  
-  def train(self):
-    for m in self.modules:
-      m.train()
-  
-  def eval(self):
-    for m in self.modules:
-      m.eval()
-  
+      return self.attention_modules[class_index](x)
+
   def l1_sparsity_loss(self, x):
     return x.sum(dim=2).sum(dim=1)
+  
   def build_binary_loss(self, class_index, pred_labels, target_labels, label_weights):
-    return self.modules[class_index].build_binary_loss(pred_labels, target_labels, label_weights)
+    return self.attention_modules[class_index].build_binary_loss(pred_labels, target_labels, label_weights)
+
 
 class AttentionModule(nn.Module):
   def __init__(self, class_id, feature_size):
