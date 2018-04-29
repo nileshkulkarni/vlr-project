@@ -95,7 +95,7 @@ class ClassAttentionModule:
     self.modules = [AttentionModule(i, feature_size) for i in range(self.num_classes)]
     
   def forward(self, class_index, x):
-    pdb.set_trace()
+    #pdb.set_trace()
     return self.modules[class_index](x)
 
   def cuda(self):

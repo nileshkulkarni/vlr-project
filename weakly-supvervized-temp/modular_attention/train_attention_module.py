@@ -43,6 +43,8 @@ def train(epoch, model, optimizer, data_iter, logger, opts):
     class_wise_acc.append(AverageMeter())
   
   mean_acc = AverageMeter()
+  p_mean_acc = AverageMeter()
+  n_mean_acc = AverageMeter()
   
   with tqdm(enumerate(data_iter, 1), total=len(data_iter),
             desc='Epoch {} '.format(epoch), unit="iteration") as pbar:
@@ -52,25 +54,29 @@ def train(epoch, model, optimizer, data_iter, logger, opts):
       opts.iteration = iteration
       if logging == 1 and (iteration % opts.log_every) == 0:
         opts.log_now = 1
+
       
       ## assuming batch contains n frames, each with label, and class_id for batch
       
       #import pdb;pdb.set_trace()
-      class_id = batch['pos_class']
+      class_id = batch['pos_class'].data.cpu().numpy()[0][0]
       input_frames = batch['flow_features']
       #input_frames = batch[0]
       target_labels = batch['labels']
       
-      output_labels = model.forward(class_id, input_frames)
+      output_labels = model.forward(class_id, input_frames).squeeze(2)
+      #import pdb;pdb.set_trace()
       loss = model.build_binary_loss(class_id, output_labels, target_labels)
       acc = compute_accuracy(output_labels, target_labels)
       avg_loss.update(loss.data[0])
-      class_wise_acc[class_id].update(acc.data[0])
-      mean_acc.update(acc.data[0])
+      class_wise_acc[class_id].update(acc[2].data[0])
+      mean_acc.update(acc[2].data[0])
+      p_mean_acc.update(acc[0].data[0])
+      n_mean_acc.update(acc[1].data[0])
       
-      pbar.set_postfix(loss=avg_loss.avg, mean_acc = mean_acc.data[0])
+      pbar.set_postfix(loss=avg_loss.avg, mean_acc = mean_acc.avg, p_mean_acc=p_mean_acc.avg)
       if logging == 1 and (iteration % opts.log_every) == 0:
-        info = {'0/1_loss' : loss.data[0], 'mean_acc' :mean_acc.data[0],'{}'.format(class_id) : acc.data[0]}
+        info = {'0/1_loss' : loss.data[0], 'pos_mean_acc' :p_mean_acc.avg, 'neg_mean_acc' :n_mean_acc.avg, 'mean_acc' :mean_acc.avg,'{}'.format(class_id) : acc[2].data[0]}
         for tag, value in info.items():
           logger.scalar_summary(tag, value, iteration)
   
@@ -80,9 +86,11 @@ def train(epoch, model, optimizer, data_iter, logger, opts):
 
 
 def compute_accuracy(output_labels, target_labels):
-    outputs = torch.ge(output_labels, 0.5)
+    outputs = torch.ge(output_labels, 0.5).float()
     acc = (1 - torch.abs(outputs - target_labels)).mean()
-    return acc
+    pacc = ((1 - torch.abs(outputs - target_labels) )* target_labels).sum() /(target_labels.sum() + 1E-5)
+    nacc = ((1 - torch.abs(outputs - target_labels))* (1- target_labels)).sum()/ ((1-target_labels).sum() + 1E-5) 
+    return [pacc, nacc, acc]
     
 
 
@@ -116,7 +124,7 @@ def main(opts):
                                          momentum=opts.momentum)
   
   # data_tsne_plot(data_iter)
-  # pdb.set_trace()
+  
   for epoch in range(opts.epochs):
     train(epoch, class_attention_net, class_attention_net_optim, data_iter, logger,
           opts)

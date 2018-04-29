@@ -353,7 +353,11 @@ class UCF101_modular(Dataset):
 
     def forward_video(self, index):
         # 1. randomly generate class.
+        #np.random.seed(0)
+        #index = 0
+		
         cls_index = np.random.choice(self._num_classes, 1)[0]
+        cls_index = 0
         pos_vid_inds, neg_vid_inds = self.label_index_dict[cls_index]
 
         # choosing with replacement 8 times
@@ -422,7 +426,7 @@ class UCF101_modular(Dataset):
         #import pdb;pdb.set_trace()
         flow_features_input = Variable(torch.from_numpy(flow_features_input[indices]).cuda())
         rgb_features_input = Variable(torch.from_numpy(rgb_features_input[indices]).cuda())
-        labels = Variable(torch.from_numpy(labels[0,indices]))
+        labels = Variable(torch.from_numpy(labels[0,indices]).float().cuda())
 
         cls_index = np.expand_dims(np.array(cls_index), axis=0)
         cls_index = Variable(torch.from_numpy(cls_index))
