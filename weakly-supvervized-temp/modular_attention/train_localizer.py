@@ -56,6 +56,8 @@ def valid(epoch, model, data_iter, logger, opts):
     info = {'valid/precision': avg_precision.avg}
     for key, value in info.items():
       logger.scalar_summary(key, value, opts.iteration)
+  
+  return avg_precision.avg
 
 
 def train(epoch, action_model, action_net_optim,
@@ -125,6 +127,18 @@ def compute_precision_recall(output_labels, target_labels):
   precision = np.nanmean(precision)
   return recall, precision
 
+def save_model(model, name, best):
+  torch.save({'state_dict' : model.state_dict()}, '{}.pkl'.format(name))
+  if best:
+    torch.save({'state_dict': model.state_dict()}, '{}_best.pkl'.format(name))
+
+
+def load_model(model, name, best):
+  checkpoint = torch.load('{}.pkl'.format(name))
+  if best:
+    checkpoint = torch.load('{}_best.pkl'.format(name))
+  model.load_state_dict(checkpoint['state_dict'])
+
 
 def collate_fn(batch):
   collated_batch = dict()
@@ -171,15 +185,17 @@ def main(opts):
   #                                    momentum=opts.momentum)
   action_net_optim = torch.optim.Adam(action_net.parameters(), lr=opts.lr)
   action_net.cuda()
-
+  best_valid_precision = 0
   for epoch in range(1, opts.epochs):
     train(epoch, action_net, action_net_optim, class_attention_net_rgb,
           class_attention_net_optim,
           data_iter_localization_train, data_iter_modular,
           logger,
           opts)
-    if epoch % 1 == 0 and epoch > 0:
-      valid(epoch, action_net, data_iter_localization_valid, logger, opts)
+    if epoch % 4 == 0 and epoch > 0:
+      valid_precision = valid(epoch, action_net, data_iter_localization_valid, logger, opts)
+      best = valid_precision > best_valid_precision
+      save_model(action_net, osp.join(opts.cache_dir,'models','action_localizer'), best)
   return
 
 

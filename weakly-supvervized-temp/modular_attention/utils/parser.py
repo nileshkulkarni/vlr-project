@@ -7,7 +7,7 @@ def get_opts():
   parser.add_argument('--labels_dir', type=str, default='thumos_data/labels')
   parser.add_argument('--feature_size', type=int, default=1024)
   parser.add_argument('--num_classes', type=int, default=20)
-  parser.add_argument('--combine_strategy', type=str, default='uniform')
+  parser.add_argument('--combine_strategy', type=str, default='strat3')
   parser.add_argument('--segments', type=int, default=400)
   parser.add_argument('--batch_size', type=int, default=4)
   parser.add_argument('--epochs', type=int, default=75)
