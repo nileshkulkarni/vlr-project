@@ -145,7 +145,7 @@ def train(epoch, action_model, action_net_optim,
       p_mean_acc.update(acc[0].data[0])
       n_mean_acc.update(acc[1].data[0])
       
-      pbar.set_postfix(loss_modular=avg_loss.avg, mean_acc=mean_acc.avg,
+      pbar.set_postfix(loss_modular=avg_loss_modular.avg, mean_acc=mean_acc.avg,
                        p_mean_acc=p_mean_acc.avg, loss=avg_loss.avg,
                        precision=avg_precision.avg)
       
