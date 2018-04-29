@@ -369,7 +369,6 @@ class UCF101_modular(Dataset):
         #index = 0
 		
         cls_index = np.random.choice(self._num_classes, 1)[0]
-        cls_index = 0
         pos_vid_inds, neg_vid_inds = self.label_index_dict[cls_index]
 
         # choosing with replacement 8 times

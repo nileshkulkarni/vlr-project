@@ -25,7 +25,7 @@ def get_opts():
   parser.add_argument('--num_diff', type=int, default=800)
   parser.add_argument('--num_same', type=int, default=800)
   parser.add_argument('--weight_pos', type=int, default=1.0)
-  parser.add_argument('--weight_neg', type=int, default=2.7)
+  parser.add_argument('--weight_neg', type=int, default=3.0)
   parser.add_argument('--weight_decay', type=int, default=0.005)
   opts = parser.parse_args()
 

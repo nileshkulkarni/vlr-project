@@ -35,6 +35,7 @@ class AverageMeter(object):
 
 logging = 1
 
+
 def valid(epoch, model, data_iter, logger, opts):
   model.eval()
   avg_loss = AverageMeter()
@@ -68,10 +69,22 @@ def train(epoch, action_model, action_net_optim,
   avg_loss = AverageMeter()
   avg_precision = AverageMeter()
   
+  avg_loss_modular = AverageMeter()
+  class_wise_acc = []
+  for i in range(opts.num_classes):
+    class_wise_acc.append(AverageMeter())
+  
+  mean_acc = AverageMeter()
+  p_mean_acc = AverageMeter()
+  n_mean_acc = AverageMeter()
+  
+  iterator_modular = iter(data_iter_modular)
+  
   with tqdm(enumerate(data_iter_localization, 1),
             total=len(data_iter_localization),
             desc='TR Epoch {} '.format(epoch), unit="iteration") as pbar:
     for batch_idx, batch in pbar:
+      ## optimize the attention module
       opts.log_now = 0
       iteration = epoch * len(data_iter_localization) + batch_idx
       opts.iteration = iteration
@@ -88,7 +101,7 @@ def train(epoch, action_model, action_net_optim,
       # print(total_loss)
       avg_loss.update(total_loss.data[0])
       avg_precision.update(precision)
-      pbar.set_postfix(loss=avg_loss.avg, precision=avg_precision.avg)
+      
       if logging == 1 and (iteration % opts.log_every) == 0:
         info = dict(
           [(key, torch.mean(item).data.cpu().numpy()[0]) for (key, item) in
@@ -106,6 +119,46 @@ def train(epoch, action_model, action_net_optim,
       action_net_optim.zero_grad()
       total_loss.backward()
       action_net_optim.step()
+      
+      ## Train Class specific Attention modules
+      modular_batch = next(iterator_modular, None)
+      
+      if modular_batch is None:
+        iterator_modular = iter(data_iter_modular)
+        modular_batch = next(iterator_modular, None)
+      
+      class_id = modular_batch['pos_class'].data.cpu().numpy()[0][0]
+      input_frames = modular_batch['rgb_features']
+      label_weights = modular_batch['weights']
+      # input_frames = batch[0]
+      target_labels = modular_batch['labels']
+      
+      output_labels = class_attention_model(input_frames, class_id)
+      # import pdb;pdb.set_trace()
+      loss = class_attention_model.build_binary_loss(class_id, output_labels,
+                                                     target_labels,
+                                                     label_weights)
+      acc = compute_accuracy(output_labels, target_labels)
+      avg_loss_modular.update(loss.data[0])
+      class_wise_acc[class_id].update(acc[2].data[0])
+      mean_acc.update(acc[2].data[0])
+      p_mean_acc.update(acc[0].data[0])
+      n_mean_acc.update(acc[1].data[0])
+      
+      pbar.set_postfix(loss_modular=avg_loss.avg, mean_acc=mean_acc.avg,
+                       p_mean_acc=p_mean_acc.avg, loss=avg_loss.avg,
+                       precision=avg_precision.avg)
+      
+      if logging == 1 and (iteration % opts.log_every) == 0:
+        info = {'0/1_loss': loss.data[0], 'pos_mean_acc': p_mean_acc.avg,
+                'neg_mean_acc': n_mean_acc.avg, 'mean_acc': mean_acc.avg,
+                '{}'.format(class_id): acc[2].data[0]}
+        for tag, value in info.items():
+          logger.scalar_summary(tag, value, iteration)
+      
+      class_attention_optim.zero_grad()
+      loss.backward()
+      class_attention_optim.step()
 
 
 def compute_accuracy(output_labels, target_labels):
@@ -127,8 +180,9 @@ def compute_precision_recall(output_labels, target_labels):
   precision = np.nanmean(precision)
   return recall, precision
 
+
 def save_model(model, name, best):
-  torch.save({'state_dict' : model.state_dict()}, '{}.pkl'.format(name))
+  torch.save({'state_dict': model.state_dict()}, '{}.pkl'.format(name))
   if best:
     torch.save({'state_dict': model.state_dict()}, '{}_best.pkl'.format(name))
 
@@ -154,18 +208,21 @@ from time import gmtime, strftime
 def main(opts):
   dataset_modular_train = UCF101_modular('val', opts)
   
-  data_iter_modular = torch.utils.data.DataLoader(dataset_modular_train, batch_size=1,
+  data_iter_modular = torch.utils.data.DataLoader(dataset_modular_train,
+                                                  batch_size=1,
                                                   shuffle=True,
                                                   collate_fn=collate_fn)
-
+  
   dataset_localization_valid = UCF101('test', opts)
   dataset_localization_train = UCF101('val', opts)
   
-  data_iter_localization_train = torch.utils.data.DataLoader(dataset_localization_train,
-                                                       batch_size=opts.batch_size,
-                                                       shuffle=True,
-                                                       collate_fn=collate_fn)
-  data_iter_localization_valid = torch.utils.data.DataLoader(dataset_localization_valid,
+  data_iter_localization_train = torch.utils.data.DataLoader(
+    dataset_localization_train,
+    batch_size=opts.batch_size,
+    shuffle=True,
+    collate_fn=collate_fn)
+  data_iter_localization_valid = torch.utils.data.DataLoader(
+    dataset_localization_valid,
     batch_size=opts.batch_size,
     shuffle=True,
     collate_fn=collate_fn)
@@ -176,11 +233,13 @@ def main(opts):
                                 'modular_attention', )
   
   action_net = ActionClassification(opts.feature_size, opts.num_classes, opts)
-  class_attention_net_rgb = action_net.get_attention_models()['rgb_attention_model']
-  class_attention_net_optim = torch.optim.SGD(class_attention_net_rgb.parameters(),
-                                              lr=opts.lr,
-                                              momentum=opts.momentum,
-                                              weight_decay=1E-5)
+  class_attention_net_rgb = action_net.get_attention_models()[
+    'rgb_attention_model']
+  class_attention_net_optim = torch.optim.SGD(
+    class_attention_net_rgb.parameters(),
+    lr=1E-3,
+    momentum=opts.momentum,
+    weight_decay=1E-5)
   # action_net_optim = torch.optim.SGD(action_net.parameters(), lr=opts.lr,
   #                                    momentum=opts.momentum)
   action_net_optim = torch.optim.Adam(action_net.parameters(), lr=opts.lr)
@@ -193,9 +252,11 @@ def main(opts):
           logger,
           opts)
     if epoch % 4 == 0 and epoch > 0:
-      valid_precision = valid(epoch, action_net, data_iter_localization_valid, logger, opts)
+      valid_precision = valid(epoch, action_net, data_iter_localization_valid,
+                              logger, opts)
       best = valid_precision > best_valid_precision
-      save_model(action_net, osp.join(opts.cache_dir,'models','action_localizer'), best)
+      save_model(action_net,
+                 osp.join(opts.cache_dir, 'models', 'action_localizer'), best)
   return
 
 

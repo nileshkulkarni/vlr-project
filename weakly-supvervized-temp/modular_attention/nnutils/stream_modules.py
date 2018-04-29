@@ -29,7 +29,7 @@ class ActionClassification(nn.Module):
       self.opts.logger.histo_summary('rgb_wt_fetaures',
                                      wt_ft_rgb.data.cpu().numpy(),
                                      self.opts.iteration)
-      
+    
     outputs = dict()
     outputs['class_both'] = class_both
     outputs['class_rgb'] = class_rgb
@@ -43,7 +43,8 @@ class ActionClassification(nn.Module):
     models = {}
     models[
       'rgb_attention_model'] = self.attention_rgb_stream.class_attention_models
-    models['flow_attention_model'] = self.attention_flow_stream.class_attention_models
+    models[
+      'flow_attention_model'] = self.attention_flow_stream.class_attention_models
     return models
   
   def build_loss(self, outputs, target_class):
@@ -81,14 +82,17 @@ class StreamModule(nn.Module):
   
   def forward(self, x):
     # x is B x T x feature_size
-  
+    
     attention = self.class_attention_models.forward(x)  # B x T x num_classes
     attention_expand = attention.unsqueeze(3).expand(
-      torch.Size([attention.size(0),attention.size(1),attention.size(2), x.size(2)]))  # B x T x num_clas x feature_size
-    x_expand = x.unsqueeze(2).expand(attention_expand.size())  # B x T x num_class x feature_size
-    new_features = x_expand * attention_expand # B x T x num_classes x feature_size
+      torch.Size([attention.size(0), attention.size(1), attention.size(2),
+                  x.size(2)]))  # B x T x num_clas x feature_size
+    x_expand = x.unsqueeze(2).expand(
+      attention_expand.size())  # B x T x num_class x feature_size
+    new_features = x_expand * attention_expand  # B x T x num_classes x feature_size
     weighted_features = torch.sum(new_features, 1)
     return weighted_features, attention  # ( B x num_class x feature_size , B x T x num_class)
+
 
 class ClassifierModule(nn.Module):
   # performs 0/1 classification
@@ -99,12 +103,13 @@ class ClassifierModule(nn.Module):
     self.mlp2 = nn.Linear(256, 1)
     self.relu = nn.ReLU()
     self.sigmoid = nn.Sigmoid()
-
+  
   def forward(self, x):
     x = self.mlp1(x)
     x = self.relu(x)
     x = self.mlp2(x)
     return x
+
 
 class StreamClassificationHead(nn.Module):
   def __init__(self, feature_size, num_classes):
@@ -117,19 +122,21 @@ class StreamClassificationHead(nn.Module):
     # x :  B x num_class x feature_size
     # x = self.classifier(x)   # B x num_class x 1
     outs = []
-   
+    
     for i in range(self.num_classes):
       outs.append(self.classifier_modules[i](x[:, i, :]))
     outs = torch.cat(outs, dim=1)  # B x num_classes x 1
     # B x num_class
     return outs
 
+
 class ClassAttentionModule(nn.Module):
   def __init__(self, feature_size, num_classes):
     super(ClassAttentionModule, self).__init__()
     self.num_classes = num_classes
-    self.attention_modules = nn.ModuleList([AttentionModule(i, feature_size) for i in range(num_classes)])
-
+    self.attention_modules = nn.ModuleList(
+      [AttentionModule(i, feature_size) for i in range(num_classes)])
+  
   def forward(self, x, class_index=None):
     if class_index is None:
       out = []
@@ -139,13 +146,16 @@ class ClassAttentionModule(nn.Module):
       out = out.permute(1, 2, 0)
       return out
     else:
-      return self.attention_modules[class_index](x)
-
+      return self.attention_modules[class_index](x).squeeze(2) # B x T
+  
   def l1_sparsity_loss(self, x):
     return x.sum(dim=2).sum(dim=1)
   
-  def build_binary_loss(self, class_index, pred_labels, target_labels, label_weights):
-    return self.attention_modules[class_index].build_binary_loss(pred_labels, target_labels, label_weights)
+  def build_binary_loss(self, class_index, pred_labels, target_labels,
+                        label_weights):
+    return self.attention_modules[class_index].build_binary_loss(pred_labels,
+                                                                 target_labels,
+                                                                 label_weights)
 
 
 class AttentionModule(nn.Module):
@@ -156,12 +166,18 @@ class AttentionModule(nn.Module):
     self.net = nn.Sequential(nn.Linear(self.feature_size, 256),
                              nn.ReLU(),
                              nn.Linear(256, 1),
-                             nn.Sigmoid())  
+                             nn.Sigmoid())
+  
   def l1_penalty(self, var):
     return torch.abs(var).sum()
+  
   def forward(self, feature_segments):
     x = self.net(feature_segments)
     return x  ## B x T
-  def build_binary_loss(self, pred_labels, target_labels, label_weights, lambda1 = 1.3e-3):
+  
+  def build_binary_loss(self, pred_labels, target_labels, label_weights,
+                        lambda1=1.3E-3):
     ## pred_labels B x 1 ## target_labels B x 1
-    return torch.nn.functional.binary_cross_entropy(pred_labels, target_labels, weight=label_weights) + lambda1 * self.l1_penalty(pred_labels)
+    return torch.nn.functional.binary_cross_entropy(pred_labels, target_labels,
+                                                    weight=label_weights) + lambda1 * self.l1_penalty(
+      pred_labels)
