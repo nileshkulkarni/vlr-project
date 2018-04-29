@@ -121,7 +121,7 @@ def main(opts):
   class_attention_net.cuda()
   class_attention_net_optim = torch.optim.SGD(class_attention_net.parameters(),
                                          lr=opts.lr,
-                                         momentum=opts.momentum)
+                                         momentum=opts.momentum, weight_decay=1E-5)
   
   # data_tsne_plot(data_iter)
   

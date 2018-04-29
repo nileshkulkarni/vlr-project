@@ -7,8 +7,8 @@ class ActionClassification(nn.Module):
   def __init__(self, feature_size, num_classes, opts):
     super(ActionClassification, self).__init__()
     self.opts = opts
-    self.attention_flow_stream = StreamModule(feature_size)
-    self.attentition_rgb_stream = StreamModule(feature_size)
+    self.attention_flow_stream = StreamModule(feature_size, num_classes)
+    self.attention_rgb_stream = StreamModule(feature_size, num_classes)
     self.classifier_flow_stream = StreamClassificationHead(feature_size,
                                                            num_classes)
     self.classifier_rgb_stream = StreamClassificationHead(feature_size,
@@ -19,8 +19,7 @@ class ActionClassification(nn.Module):
   def forward(self, rgb_features, flow_features):
     # rgb B x T x 1024
     # flow B x T x 1024
-    
-    wt_ft_rgb, attn_rgb = self.attentition_rgb_stream(rgb_features)
+    wt_ft_rgb, attn_rgb = self.attention_rgb_stream(rgb_features)
     wt_ft_flow, attn_flow = self.attention_flow_stream(flow_features)
     class_flow = self.classifier_flow_stream(wt_ft_flow)
     class_rgb = self.classifier_rgb_stream(wt_ft_rgb)
@@ -30,6 +29,7 @@ class ActionClassification(nn.Module):
       self.opts.logger.histo_summary('rgb_wt_fetaures',
                                      wt_ft_rgb.data.cpu().numpy(),
                                      self.opts.iteration)
+      
     outputs = dict()
     outputs['class_both'] = class_both
     outputs['class_rgb'] = class_rgb
@@ -39,12 +39,19 @@ class ActionClassification(nn.Module):
     
     return outputs
   
+  def get_attention_models(self):
+    models = {}
+    models[
+      'rgb_attention_model'] = self.attention_rgb_stream.class_attention_models
+    models['flow_attention_model'] = self.attention_flow_stream.class_attention_models
+    return models
+  
   def build_loss(self, outputs, target_class):
     # target_class is B x C
     self.rgb_loss = self.multi_label_cross(outputs['class_rgb'], target_class)
     self.flow_loss = self.multi_label_cross(outputs['class_flow'], target_class)
     self.both_loss = self.multi_label_cross(outputs['class_both'], target_class)
-    self.rgb_sparsity = self.attentition_rgb_stream.attention_module.l1_sparsity_loss(
+    self.rgb_sparsity = self.attention_rgb_stream.attention_module.l1_sparsity_loss(
       outputs['attn_rgb'])
     self.flow_sparsity = self.attention_flow_stream.attention_module.l1_sparsity_loss(
       outputs['attn_flow'])
@@ -63,41 +70,66 @@ class ActionClassification(nn.Module):
 
 
 class StreamModule(nn.Module):
-  def __init__(self, feature_size):
+  def __init__(self, feature_size, num_classes):
     super(StreamModule, self).__init__()
     self.feature_size = feature_size
-    self.attention_module = AttentionModule(self.feature_size)
+    self.num_classes = num_classes
+    self.attention_module = ClassAttentionModule(self.feature_size,
+                                                 self.num_classes)
+    self.class_attention_models = ClassAttentionModule(self.feature_size,
+                                                       self.num_classes)
   
   def forward(self, x):
-    # x is B x T x 1024
-    attention = self.attention_module(x)  # B x T
-    attention_expand = attention.expand(x.size())  # B X T x feature_size
-    new_features = x * attention_expand
+    # x is B x T x feature_size
+  
+    attention = self.class_attention_models.forward(x)  # B x T x num_classes
+    attention_expand = attention.unsqueeze(3).expand(
+      torch.Size([attention.size(0),attention.size(1),attention.size(2), x.size(2)]))  # B x T x num_clas x feature_size
+    x_expand = x.unsqueeze(2).expand(attention_expand.size())  # B x T x num_class x feature_size
+    new_features = x_expand * attention_expand
     weighted_features = torch.sum(new_features, 1)
-    return weighted_features, attention
+    return weighted_features, attention  # ( B x num_class x feature_size , B x T x num_class)
 
 
 class StreamClassificationHead(nn.Module):
   def __init__(self, feature_size, num_classes):
     super(StreamClassificationHead, self).__init__()
-    self.classifier = nn.Linear(feature_size, num_classes)
+    self.num_classes = num_classes
+    self.classifier = nn.ModuleList(
+      [nn.Linear(feature_size, 1) for i in range(num_classes)])
     self.sigmoid = nn.Sigmoid()
   
   def forward(self, x):
-    x = self.classifier(x)
-    x = self.sigmoid(x)
-    return x
+    # x :  B x num_class x feature_size
+    # x = self.classifier(x)   # B x num_class x 1
+    outs = []
+   
+    for i in range(self.num_classes):
+      outs.append(self.classifier[i](x[:,i,:]))
+    outs = torch.cat(outs, dim=1)  # B x num_classes x 1
+    # B x num_class
+    outs = self.sigmoid(outs)
+    return outs
 
 
 class ClassAttentionModule:
   def __init__(self, feature_size, num_classes):
     self.num_classes = num_classes
-    self.modules = [AttentionModule(i, feature_size) for i in range(self.num_classes)]
-    
-  def forward(self, class_index, x):
-    #pdb.set_trace()
-    return self.modules[class_index](x)
-
+    self.modules = [AttentionModule(i, feature_size) for i in
+                    range(self.num_classes)]
+  
+  def forward(self, x, class_index=None):
+    # pdb.set_trace()
+    if class_index is None:
+      out = []
+      for m in self.modules:
+        out.append(m(x))  ## m(x) B x T x 1024
+      out = torch.stack(out).squeeze(3)
+      out = out.permute(1, 2, 0)
+      return out
+    else:
+      return self.modules[class_index](x)
+  
   def cuda(self):
     for m in self.modules:
       m.cuda()
@@ -118,7 +150,11 @@ class ClassAttentionModule:
       m.eval()
   
   def build_binary_loss(self, class_index, pred_labels, target_labels):
-    return self.modules[class_index].build_binary_loss(pred_labels, target_labels)
+    return self.modules[class_index].build_binary_loss(pred_labels,
+                                                       target_labels)
+  
+  def l1_sparsity_loss(self, x):
+    return x.sum(dim=2).sum(dim=1)
 
 class AttentionModule(nn.Module):
   def __init__(self, class_id, feature_size):
@@ -133,7 +169,7 @@ class AttentionModule(nn.Module):
   def forward(self, feature_segments):
     x = self.net(feature_segments)
     return x  ## B x T
-
+  
   def build_binary_loss(self, pred_labels, target_labels):
     ## pred_labels B x 1 ## target_labels B x 1
     return torch.nn.functional.binary_cross_entropy(pred_labels, target_labels)
