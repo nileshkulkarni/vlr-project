@@ -66,7 +66,7 @@ def train(epoch, model, optimizer, data_iter, logger, opts):
       # input_frames = batch[0]
       target_labels = batch['labels']
       
-      output_labels = model.forward(class_id, input_frames).squeeze(2)
+      output_labels = model.forward(input_frames,class_id)
       # import pdb;pdb.set_trace()
       loss = model.build_binary_loss(class_id, output_labels, target_labels,
                                      label_weights)
@@ -133,9 +133,7 @@ def test(model, data_iter, opts):
     test_class_id = 0
     # import pdb;pdb.set_trace()
     input_frames = Variable(collate_fn_test(batch['rgb'])).cuda()
-    
-    output_labels = model.forward(test_class_id, input_frames).squeeze(
-      2).data.cpu().numpy()
+    output_labels = model.forward(input_frames, test_class_id).data.cpu().numpy()
     # import pdb;pdb.set_trace()
     target_labels = np.ones(output_labels.shape)
     if class_id != 0:
@@ -153,9 +151,7 @@ from time import gmtime, strftime
 
 
 def main(opts):
-  video_names = split('/scratch/smynepal/THUMOSFrames/val/')
-  
-  test_dataset = UCF101Temporal('val', video_names, opts)
+  test_dataset = UCF101Temporal('val', opts)
   dataset = UCF101_modular('val', opts)
   
   test_data_iter = torch.utils.data.DataLoader(test_dataset, batch_size=1,
@@ -178,7 +174,9 @@ def main(opts):
   # data_tsne_plot(data_iter)
   
   for epoch in range(opts.epochs):
-    if epoch % 4 == 0: test(class_attention_net, test_data_iter, opts)
+    if epoch % 4 == 0:
+      test(class_attention_net, test_data_iter, opts)
+    
     train(epoch, class_attention_net, class_attention_net_optim, data_iter,
           logger,
           opts)

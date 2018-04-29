@@ -154,10 +154,10 @@ class UCF101(Dataset):
 
 
 class UCF101Temporal(Dataset):
-  def __init__(self, dataset_name, video_names, opts):
+  def __init__(self, dataset_name, opts):
     self._ucf_dir = opts.ucf_dir
-    self._ucf_dir = '/scratch/smynepal/THUMOSFrames/val_features/'
-    self._video_names = video_names
+    self._ucf_dir = osp.join(opts.ucf_dir, "{}_features".format(dataset_name))
+    self._ignore_names = [".", ".."]
     self._feature_size = opts.feature_size
     
     self._file_names = []
@@ -167,7 +167,7 @@ class UCF101Temporal(Dataset):
     self._labels = []
     self._video2segment_label = dict()
     for file in os.listdir(self._ucf_dir):
-      if file in self._video_names:
+      if not (file in self._ignore_names):
         self._file_names.append(file)
         video_index = self.video2index[file]
         self._labels.append(self.video_labels[video_index])
@@ -233,7 +233,6 @@ class UCF101Temporal(Dataset):
     return (flow_segments, rgb_segments, labels, filename)
   
   def class_labels(self, name, labels_dir):
-    labels_dir = '/home/smynepal/Projects/VLR/I3D/train/vlr-project/weakly-supvervized-temp/thumos_data/labels/'
     class2index_file = osp.join(labels_dir, 'class_dict.csv')
     video2index_file = osp.join(labels_dir, 'video_indices_{}.csv'.format(name))
     video2labels_file = osp.join(labels_dir, 'class_labels_{}.npy'.format(name))

@@ -179,5 +179,4 @@ class AttentionModule(nn.Module):
                         lambda1=1.1E-3):
     ## pred_labels B x 1 ## target_labels B x 1
     return torch.nn.functional.binary_cross_entropy(pred_labels, target_labels,
-                                                    weight=label_weights) + lambda1 * self.l1_penalty(
-      pred_labels)
+                                                    weight=label_weights) + lambda1 * self.l1_penalty(pred_labels)
