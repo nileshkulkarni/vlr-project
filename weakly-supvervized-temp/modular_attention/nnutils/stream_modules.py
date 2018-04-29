@@ -149,12 +149,10 @@ class ClassAttentionModule:
     for m in self.modules:
       m.eval()
   
-  def build_binary_loss(self, class_index, pred_labels, target_labels):
-    return self.modules[class_index].build_binary_loss(pred_labels,
-                                                       target_labels)
-  
   def l1_sparsity_loss(self, x):
     return x.sum(dim=2).sum(dim=1)
+  def build_binary_loss(self, class_index, pred_labels, target_labels, label_weights):
+    return self.modules[class_index].build_binary_loss(pred_labels, target_labels, label_weights)
 
 class AttentionModule(nn.Module):
   def __init__(self, class_id, feature_size):
@@ -164,12 +162,12 @@ class AttentionModule(nn.Module):
     self.net = nn.Sequential(nn.Linear(self.feature_size, 256),
                              nn.ReLU(),
                              nn.Linear(256, 1),
-                             nn.Sigmoid())
-  
+                             nn.Sigmoid())  
+  def l1_penalty(self, var):
+    return torch.abs(var).sum()
   def forward(self, feature_segments):
     x = self.net(feature_segments)
     return x  ## B x T
-  
-  def build_binary_loss(self, pred_labels, target_labels):
+  def build_binary_loss(self, pred_labels, target_labels, label_weights, lambda1 = 1.3e-3):
     ## pred_labels B x 1 ## target_labels B x 1
-    return torch.nn.functional.binary_cross_entropy(pred_labels, target_labels)
+    return torch.nn.functional.binary_cross_entropy(pred_labels, target_labels, weight=label_weights) + lambda1 * self.l1_penalty(pred_labels)

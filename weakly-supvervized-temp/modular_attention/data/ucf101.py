@@ -150,6 +150,7 @@ class UCF101(Dataset):
 class UCF101Temporal(Dataset):
     def __init__(self, dataset_name, video_names, opts):
         self._ucf_dir = opts.ucf_dir
+        self._ucf_dir = '/scratch/smynepal/THUMOSFrames/val_features/'
         self._video_names = video_names
         self._feature_size = opts.feature_size
 
@@ -195,7 +196,8 @@ class UCF101Temporal(Dataset):
         data['flow'] = flow_features
         data['rgb'] = rgb_features
         data['label'] = labels
-        data['video_name'] = filename
+        #data['video_name'] = filename
+        #import pdb;pdb.set_trace()
         return data
 
     def forward_video_as_segments(self, index):
@@ -221,6 +223,7 @@ class UCF101Temporal(Dataset):
         return (flow_segments, rgb_segments, labels, filename)
 
     def class_labels(self, name, labels_dir):
+        labels_dir = '/home/smynepal/Projects/VLR/I3D/train/vlr-project/weakly-supvervized-temp/thumos_data/labels/'
         class2index_file = osp.join(labels_dir, 'class_dict.csv')
         video2index_file = osp.join(labels_dir, 'video_indices_{}.csv'.format(name))
         video2labels_file = osp.join(labels_dir, 'class_labels_{}.npy'.format(name))
@@ -276,6 +279,8 @@ class UCF101_modular(Dataset):
         # self._labels = torch.Tensor(len(self._file_names), self._num_classes).float().zero_()
 
         # parameters for independent classifer training data,
+        self.weight_pos = opts.weight_pos
+        self.weight_neg = opts.weight_neg
         self._num_same = opts.num_same
         self._num_diff = opts.num_diff
         self._num_class_iter_per_epoch = opts.num_class_iter_per_epoch
@@ -288,11 +293,12 @@ class UCF101_modular(Dataset):
     def __getitem__(self, item):
         ## returns the feature vector for the video
         # import pdb;pdb.set_trace()
-        pos_class, labels, flow_features = self.forward_video(item)
+        pos_class, labels, weights, flow_features, rgb_features = self.forward_video(item)
         data = dict()
+        data['weights'] = weights
         data['labels'] = labels
         data['flow_features'] = flow_features
-        #data['rgb_features'] = rgb_features
+        data['rgb_features'] = rgb_features
         data['pos_class'] = pos_class
         return data
 
@@ -415,6 +421,8 @@ class UCF101_modular(Dataset):
         labels_neg = np.zeros([len(flow_input_neg),1])
         labels = np.reshape(np.vstack([labels_pos, labels_neg]), -1)
         labels = np.expand_dims(np.array(labels), axis=0)
+        weights = labels * self.weight_pos + (1 - labels) * self.weight_neg
+        #labels = np.expand_dims(np.array(labels), axis=0)
 
 
         flow_features_input = np.vstack([flow_input_pos, flow_input_neg])
@@ -427,11 +435,12 @@ class UCF101_modular(Dataset):
         flow_features_input = Variable(torch.from_numpy(flow_features_input[indices]).cuda())
         rgb_features_input = Variable(torch.from_numpy(rgb_features_input[indices]).cuda())
         labels = Variable(torch.from_numpy(labels[0,indices]).float().cuda())
+        weights = Variable(torch.from_numpy(weights[0,indices]).float().cuda())
 
         cls_index = np.expand_dims(np.array(cls_index), axis=0)
         cls_index = Variable(torch.from_numpy(cls_index))
 
-        return cls_index, labels, flow_features_input#, rgb_features_input
+        return cls_index, labels, weights, flow_features_input, rgb_features_input
 
 
 def split(data_dir):

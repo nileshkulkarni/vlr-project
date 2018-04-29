@@ -3,7 +3,7 @@ import torch.nn
 import os.path as osp
 from modular_attention.utils.parser import get_opts
 from modular_attention.nnutils.stream_modules import ClassAttentionModule
-from modular_attention.data.ucf101 import UCF101, split, UCF101_modular
+from modular_attention.data.ucf101 import UCF101, split, UCF101_modular,UCF101Temporal
 from modular_attention.logger import Logger
 from tqdm import tqdm
 import pdb
@@ -11,7 +11,7 @@ from tensorboardX import SummaryWriter
 import collections
 from sklearn.metrics import average_precision_score, recall_score
 import numpy as np
-
+from torch.autograd import Variable
 
 class AverageMeter(object):
   """Computes and stores the average and current value"""
@@ -60,13 +60,14 @@ def train(epoch, model, optimizer, data_iter, logger, opts):
       
       #import pdb;pdb.set_trace()
       class_id = batch['pos_class'].data.cpu().numpy()[0][0]
-      input_frames = batch['flow_features']
+      input_frames = batch['rgb_features']
+      label_weights = batch['weights']
       #input_frames = batch[0]
       target_labels = batch['labels']
       
       output_labels = model.forward(class_id, input_frames).squeeze(2)
       #import pdb;pdb.set_trace()
-      loss = model.build_binary_loss(class_id, output_labels, target_labels)
+      loss = model.build_binary_loss(class_id, output_labels, target_labels, label_weights)
       acc = compute_accuracy(output_labels, target_labels)
       avg_loss.update(loss.data[0])
       class_wise_acc[class_id].update(acc[2].data[0])
@@ -101,14 +102,53 @@ def collate_fn(batch):
     collated_batch[key] = torch.stack([example[key] for example in batch])
   return collated_batch
 
+def collate_fn_test(batch):
+	collated_batch = torch.stack([example for example in batch])
+	return collated_batch.view(1, -1,1024)
+
+def find_tps(target_labels, output_labels):
+	output_labels = (output_labels > 0.5) * 1
+	tp = np.sum(target_labels * output_labels)
+	fp = np.sum((1 - target_labels) * output_labels)
+	numPos = np.sum(target_labels)
+	return tp, fp, numPos
+
+
+def test(model, data_iter, opts):
+    model.eval()
+    tps = 0
+    fps = 0
+    numPos = 0
+    for batch_idx, batch in enumerate(data_iter):
+        opts.log_now = 0
+        class_id = int(batch['label'][0][0][0])
+        test_class_id = 0
+        #import pdb;pdb.set_trace()
+        input_frames = Variable(collate_fn_test(batch['rgb'])).cuda()
+
+
+        output_labels = model.forward(test_class_id , input_frames).squeeze(2).data.cpu().numpy()
+        # import pdb;pdb.set_trace()
+        target_labels = np.ones(output_labels.shape)
+        if class_id != 0:
+            target_labels = target_labels * 0
+        tp, fp, numP = find_tps(target_labels, output_labels)
+        tps = tps + tp
+        fps = fps + fp
+        numPos = numPos + numP
+
+    print('True Positives: ', tps, ' False Positives : ', fps, ' Num Positives: ', numPos)
 
 from time import gmtime, strftime
 
 
 def main(opts):
-  video_names = split(opts.ucf_dir)
+  video_names = split('/scratch/smynepal/THUMOSFrames/val/')
   
+  test_dataset = UCF101Temporal('val', video_names, opts)
   dataset = UCF101_modular('val', opts)
+  
+  test_data_iter = torch.utils.data.DataLoader(test_dataset, batch_size=1,shuffle=False)
   data_iter = torch.utils.data.DataLoader(dataset, batch_size=1,
                                           shuffle=True, collate_fn=collate_fn)
   
@@ -121,13 +161,15 @@ def main(opts):
   class_attention_net.cuda()
   class_attention_net_optim = torch.optim.SGD(class_attention_net.parameters(),
                                          lr=opts.lr,
-                                         momentum=opts.momentum, weight_decay=1E-5)
+                                         momentum=opts.momentum, weight_decay=opts.weight_decay)
   
   # data_tsne_plot(data_iter)
   
   for epoch in range(opts.epochs):
+    if epoch%4==0 :test(class_attention_net, test_data_iter, opts)
     train(epoch, class_attention_net, class_attention_net_optim, data_iter, logger,
           opts)
+  
   return
 
 
