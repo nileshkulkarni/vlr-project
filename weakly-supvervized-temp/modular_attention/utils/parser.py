@@ -12,7 +12,7 @@ def get_opts():
   parser.add_argument('--batch_size', type=int, default=4)
   parser.add_argument('--epochs', type=int, default=75)
   parser.add_argument('--log_every', type=int, default=20)
-  parser.add_argument('--lr', type=float, default=0.001)
+  parser.add_argument('--lr', type=float, default=0.0001)
   parser.add_argument('--sparsity_wt_rgb', type=float, default=0.0001)
   parser.add_argument('--sparsity_wt_flow', type=float, default=0.0001)
   parser.add_argument('--cls_wt_both', type=float, default=0.0)

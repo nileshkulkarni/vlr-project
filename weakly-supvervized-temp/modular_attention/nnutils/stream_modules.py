@@ -94,6 +94,7 @@ class ClassifierModule(nn.Module):
   # performs 0/1 classification
   def __init__(self, class_index, feature_size):
     super(ClassifierModule, self).__init__()
+    self.class_index = class_index
     self.mlp1 = nn.Linear(feature_size, 256)
     self.mlp2 = nn.Linear(256, 1)
     self.relu = nn.ReLU()
